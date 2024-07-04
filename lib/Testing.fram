@@ -1,0 +1,179 @@
+(* This file is part of DBL, released under MIT license.
+ * See LICENSE for details.
+ *)
+
+
+(* ========================================================================= *)
+
+data Testing (effect E) =
+	{ assert : String -> Bool ->[E] Unit
+	, expect : String -> Bool ->[E] Unit
+	}
+
+method red {self : String} = "\027[31m" + self + "\027[0m"
+method green {self : String} = "\027[32m" + self + "\027[0m"
+
+let hTesting (f : {E, `testing: Testing E} -> Unit ->[E|_] Unit) =
+	handle {effect=E_testing} testing = Testing 
+		{ assert = effect msg b / r => fn st =>
+			if b then r () st else (
+				printStrLn ("Assertion failed".red + ": " + msg);
+				False)
+		, expect = effect msg b / r => fn st =>
+			if b then r () st else (
+				printStrLn ("Expectation failed".red + ": " + msg);
+				r () False)
+		}
+		return () => fn x => x
+		finally f => f True
+		in
+		let `testing = testing in
+		f {E=E_testing, `testing} ()
+
+(* ========================================================================= *)
+
+data TestUnit (effect E) = {
+	name : String,
+	body : Unit ->[E|_] Unit
+	(* TODO: add tags *)
+	}
+
+let makeUnit {effect=E} (name : String) (body : Unit ->[E|_] Unit) =
+	TestUnit{ name, body }
+
+data TestingModule E = TestingModule of
+	{ name	: String
+	, tests : List (TestUnit E)
+	(* TODO: add tags *)
+}
+
+method name {E, self = TestingModule{ name } : TestingModule E} = name
+method tests {E, self = TestingModule{ tests } : TestingModule E} = tests
+
+let makeModule {E} (name : String) =
+	TestingModule{ name, tests = [] }
+
+method updateModule {E, self : TestingModule E} unit =
+	TestingModule{ name = self.name, tests = unit :: self.tests }
+
+data HeadModule E F =
+	{ getTests	 : Unit ->[F] List (TestUnit E)
+	, getModules : Unit ->[F] List (TestingModule E)
+	, addModule	 : TestingModule E ->[F] Unit
+	, addTest		 : Option String -> TestUnit E ->[F] Unit
+	}
+
+(* ========================================================================= *)
+(* running tests *)
+
+data TestingStats =
+	{ modName : String
+	, passed : List String
+	, failed : List String
+	}
+
+method toString {self : TestingStats} =
+	let passedLen = self.passed.length in
+	let failedLen = self.failed.length in
+	let total = passedLen + failedLen in
+	let failed = if failedLen == 0 then ""
+	else "failed:\n" + self.failed.foldLeft
+		(fn str name => str + "\n" + name.red) in
+	"module '" + self.modName
+	+ "' [" + passedLen.toString + "/" + total.toString + "]\n"
+	+ failed
+
+method runTest {E, self : TestUnit E}
+		(TestingStats{ passed, failed }) =
+	if hTesting self.body
+	then (
+		printStrLn ("[PASSED]".green + ": " + self.name);
+		TestingStats{ passed = self.name :: passed, failed })
+	else (
+		printStrLn ("[FAILED]".red + ": " + self.name);
+		TestingStats{ passed, failed = self.name :: failed })
+
+method runTests {E, self : TestingModule E} =
+	let stats = TestingStats{ modName=self.name, passed=[], failed=[] } in
+	printStrLn ("=======[" + self.name + "]=======");
+	let stats = self.tests.rev.foldLeft (fn stats t => t.runTest stats) stats in
+	let passedLen = self.passed.length in
+	let failedLen = self.failed.length in
+	let total = passedLen + failedLen in
+	printStrLn ("=======[" + passedLen.toString
+		+ "/" + total.toString + "]=======");
+	stats
+
+let runHeadTests (tests : List TestUnit) (mods : List TestingModule) =
+	(* TODO : add filtering of modules/tests based on argv *)
+	let stats = TestingStats{ modName="head", passed=[], failed=[] } in
+	let headResults = (tests.rev.foldLeft (fn stats t => t.runTest stats) stats)
+	let results = headResults :: mods.rev.map (fn m => m.runTests) in
+	let res = results.foldLeft (fn res s =>
+		printStrLn s.toString;
+		res && s.failed.isEmpty) True in
+	if res
+	then exit 0
+	else exit 1
+	
+
+handle {effect=TestingEff} head_module = HeadModule
+	{ getTests	 = effect () / r => fn st => r (fst st) st
+	, getModules = effect () / r => fn st => r (snd st) st
+	, setModules = effect mods / r => fn (tests, _) =>
+		r () (tests, mods)
+	, setTests	 = effect tests / r => fn (_, mods) =>
+		r () (tests, mods)
+	}
+	return _ => fn (tests, mods) => runHeadTests tests mods
+	finally head_module => head_module ([], [])
+
+(* ========================================================================= *)
+(* helpers in registering tests *)
+
+data TestModule = { name : String }
+
+method addTest {E, F, self : HeadModule E F} test =
+	let tests = head_module.getTests () in
+	head_module.setTests (test :: tests)
+
+method addModule {E, F, self : HeadModule E F} mod =
+	let mods = head_module.getModules () in
+	head_module.setModules (mod :: mods)
+
+method updateModule {E, F, self : HeadModule E F} (mod : TestModule) test =
+	let mods = head_module.getModules () in
+	let rec aux mods = match mods with
+		| mod' :: mods =>
+			if mod'.name == mod.name
+			then mod'.updateModule test :: mods
+			else mod' :: aux mods
+		| [] =>
+			// this should never occur, but if it does, nothing bad will happen
+			[ makeModule mod.name >. updateModule test ]
+		end in
+	head_module.setModules (aux mods)
+
+(* ========================================================================= *)
+(* public interface for testing *)
+
+implicit `testing {E_testing} : Testing E_testing
+
+pub method assert {E, self : Testing E} = self.assert
+pub method assertNot {E, self : Testing E} b = self.assert (not b)
+
+pub method expect {E, self : Testing E} = self.expect
+pub method expectNot {E, self : Testing E} b = self.expect (not b)
+
+pub method name {self : TestModule} = self.name
+
+pub let registerModule name =
+	head_module.addModule (makeModule name);
+	TestModule { name }
+
+pub let registerTest name body =
+	head_module.addTest (makeUnit name body)
+
+pub method registerTest {self : TestModule} name body =
+	head_module.updateModule self (makeUnit name body)
+
