@@ -43,9 +43,10 @@ type tname =
 (** Name of a named parameter *)
 type name =
   | NLabel
-  | NVar      of var
-  | NImplicit of iname
-  | NMethod   of method_name 
+  | NVar         of var
+  | NOptionalVar of var
+  | NImplicit    of iname
+  | NMethod      of method_name 
 
 (** Visibility of definition *)
 type is_public = bool
@@ -159,7 +160,7 @@ and pattern_data =
 and ctor_pattern_named =
   | CNParams of named_type_arg list * named_pattern list
     (** Named type parameters and named patterns of a constructor *)
-  | CNModule of module_name
+  | CNModule of is_public * module_name
     (** Bind all named parameters under the specified module name *)
 
 (** Pattern for named parameter *)
