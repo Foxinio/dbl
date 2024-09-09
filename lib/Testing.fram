@@ -2,18 +2,19 @@
  * See LICENSE for details.
  *)
 
+import List
 
 (* ========================================================================= *)
 
-data Testing (effect E) =
-	{ assert : String -> Bool ->[E] Unit
-	, expect : String -> Bool ->[E] Unit
+data Testing (effect AssertEff) =
+	{ assert : String -> Bool ->[AssertEff] Unit
+	, expect : String -> Bool ->[AssertEff] Unit
 	}
 
 method red {self : String} = "\027[31m" + self + "\027[0m"
 method green {self : String} = "\027[32m" + self + "\027[0m"
 
-let hTesting (f : {E, `testing: Testing E} -> Unit ->[E|_] Unit) =
+let hTesting (f : {AssertEff, `testing: Testing AssertEff} -> Unit ->[AssertEff|_] Unit) =
 	handle {effect=E_testing} testing = Testing 
 		{ assert = effect msg b / r => fn st =>
 			if b then r () st else (
@@ -28,39 +29,39 @@ let hTesting (f : {E, `testing: Testing E} -> Unit ->[E|_] Unit) =
 		finally f => f True
 		in
 		let `testing = testing in
-		f {E=E_testing, `testing} ()
+		f {AssertEff=E_testing, `testing} ()
 
 (* ========================================================================= *)
 
-data TestUnit (effect E) = {
+data TestUnit = {
 	name : String,
-	body : Unit ->[E|_] Unit
+	body : Unit ->[|_] Unit
 	(* TODO: add tags *)
 	}
 
-let makeUnit {effect=E} (name : String) (body : Unit ->[E|_] Unit) =
+let makeUnit (name : String) (body : Unit ->[|_] Unit) =
 	TestUnit{ name, body }
 
-data TestingModule E = TestingModule of
+data TestingModule = TestingModule of
 	{ name	: String
-	, tests : List (TestUnit E)
+	, tests : List TestUnit
 	(* TODO: add tags *)
 }
 
-method name {E, self = TestingModule{ name } : TestingModule E} = name
-method tests {E, self = TestingModule{ tests } : TestingModule E} = tests
+method name {self = TestingModule{ name } : TestingModule} = name
+method tests {self = TestingModule{ tests } : TestingModule} = tests
 
-let makeModule {E} (name : String) =
+let makeModule  (name : String) =
 	TestingModule{ name, tests = [] }
 
-method updateModule {E, self : TestingModule E} unit =
+method updateModule {self : TestingModule} unit =
 	TestingModule{ name = self.name, tests = unit :: self.tests }
 
-data HeadModule E F =
-	{ getTests	 : Unit ->[F] List (TestUnit E)
-	, getModules : Unit ->[F] List (TestingModule E)
-	, addModule	 : TestingModule E ->[F] Unit
-	, addTest		 : Option String -> TestUnit E ->[F] Unit
+data HeadModule (effect TestModSt) =
+	{ getTests	 : Unit ->[TestModSt] List TestUnit
+	, getModules : Unit ->[TestModSt] List TestingModule
+	, setModules : List TestingModule ->[TestModSt] Unit
+	, setTests	 : List TestUnit ->[TestModSt] Unit
 	}
 
 (* ========================================================================= *)
@@ -77,34 +78,37 @@ method toString {self : TestingStats} =
 	let failedLen = self.failed.length in
 	let total = passedLen + failedLen in
 	let failed = if failedLen == 0 then ""
-	else "failed:\n" + self.failed.foldLeft
-		(fn str name => str + "\n" + name.red) in
+	else "failed:" + self.failed.foldLeft
+		(fn (str : String) name => str + "\n" + name.red) "" in
 	"module '" + self.modName
 	+ "' [" + passedLen.toString + "/" + total.toString + "]\n"
 	+ failed
 
-method runTest {E, self : TestUnit E}
-		(TestingStats{ passed, failed }) =
+let constTrue _ = True
+
+method runTest {self : TestUnit}
+		(TestingStats{ modName, passed, failed }) =
 	if hTesting self.body
 	then (
 		printStrLn ("[PASSED]".green + ": " + self.name);
-		TestingStats{ passed = self.name :: passed, failed })
+		TestingStats{ modName, passed = self.name :: passed, failed })
 	else (
 		printStrLn ("[FAILED]".red + ": " + self.name);
-		TestingStats{ passed, failed = self.name :: failed })
+		TestingStats{ modName, passed, failed = self.name :: failed })
 
-method runTests {E, self : TestingModule E} =
+method runTests {self : TestingModule} =
 	let stats = TestingStats{ modName=self.name, passed=[], failed=[] } in
 	printStrLn ("=======[" + self.name + "]=======");
 	let stats = self.tests.rev.foldLeft (fn stats t => t.runTest stats) stats in
-	let passedLen = self.passed.length in
-	let failedLen = self.failed.length in
+	let passedLen = stats.passed.length in
+	let failedLen = stats.failed.length in
 	let total = passedLen + failedLen in
 	printStrLn ("=======[" + passedLen.toString
 		+ "/" + total.toString + "]=======");
 	stats
 
-let runHeadTests (tests : List TestUnit) (mods : List TestingModule) =
+let runHeadTests (tests : List TestUnit)
+		(mods : List TestingModule) =
 	(* TODO : add filtering of modules/tests based on argv *)
 	let stats = TestingStats{ modName="head", passed=[], failed=[] } in
 	let headResults = (tests.rev.foldLeft (fn stats t => t.runTest stats) stats)
@@ -115,9 +119,9 @@ let runHeadTests (tests : List TestUnit) (mods : List TestingModule) =
 	if res
 	then exit 0
 	else exit 1
-	
 
-handle {effect=TestingEff} head_module = HeadModule
+
+handle head_module = HeadModule
 	{ getTests	 = effect () / r => fn st => r (fst st) st
 	, getModules = effect () / r => fn st => r (snd st) st
 	, setModules = effect mods / r => fn (tests, _) =>
@@ -133,17 +137,17 @@ handle {effect=TestingEff} head_module = HeadModule
 
 data TestModule = { name : String }
 
-method addTest {E, F, self : HeadModule E F} test =
+method addTest {TestModSt, self : HeadModule TestModSt} test =
 	let tests = head_module.getTests () in
 	head_module.setTests (test :: tests)
 
-method addModule {E, F, self : HeadModule E F} mod =
+method addModule {TestModSt, self : HeadModule TestModSt} mod =
 	let mods = head_module.getModules () in
 	head_module.setModules (mod :: mods)
 
-method updateModule {E, F, self : HeadModule E F} (mod : TestModule) test =
+method updateModule {TestModSt, self : HeadModule TestModSt} (mod : TestModule) test =
 	let mods = head_module.getModules () in
-	let rec aux mods = match mods with
+	let rec aux (mods : List TestingModule) = match mods with
 		| mod' :: mods =>
 			if mod'.name == mod.name
 			then mod'.updateModule test :: mods
@@ -159,11 +163,49 @@ method updateModule {E, F, self : HeadModule E F} (mod : TestModule) test =
 
 implicit `testing {E_testing} : Testing E_testing
 
-pub method assert {E, self : Testing E} = self.assert
-pub method assertNot {E, self : Testing E} b = self.assert (not b)
+pub method assertNot
+		{ AssertEff
+		, self : Testing AssertEff
+		, ?msg} (b : Bool) =
+	let msg =
+		match msg with
+		| Some msg => msg
+		| None     => ""
+		end in
+	self.assert msg (not b)
 
-pub method expect {E, self : Testing E} = self.expect
-pub method expectNot {E, self : Testing E} b = self.expect (not b)
+pub method assert
+		{ AssertEff
+		, self : Testing AssertEff
+		, ?msg} =
+	let msg =
+		match msg with
+		| Some msg => msg
+		| None     => ""
+		end in
+	self.assert msg
+
+pub method expectNot
+		{ AssertEff
+		, self : Testing AssertEff
+		, ?msg} (b : Bool) =
+	let msg =
+		match msg with
+		| Some msg => msg
+		| None     => ""
+		end in
+	self.expect msg (not b)
+
+pub method expect
+		{ AssertEff
+		, self : Testing AssertEff
+		, ?msg} =
+	let msg =
+		match msg with
+		| Some msg => msg
+		| None     => ""
+		end in
+	self.expect msg
 
 pub method name {self : TestModule} = self.name
 
