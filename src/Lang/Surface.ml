@@ -356,10 +356,15 @@ and def_data =
     (** Print type, evaluate, and print the expression, provided by a user in
       REPL. *)
 
+  | DReplInstr of repl_instr
+    (** Manipulate REPL instance with repl instruction *)
+
 (** Pattern-matching clauses *)
 and match_clause = match_clause_data node
 and match_clause_data =
   | Clause of pattern * expr
+
+and repl_instr = (expr, def, type_expr) ReplInstr.repl_instr
 
 (** Program *)
 type program = expr

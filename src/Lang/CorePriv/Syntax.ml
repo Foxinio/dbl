@@ -41,6 +41,7 @@ type expr =
   | EReset    of value * Type.ex list * value list * expr * var * expr
   | ERepl     of (unit -> expr) * ttype * effct
   | EReplExpr of expr * string * expr
+  | EReplInstr of expr
 
 and value =
   | VNum    of int

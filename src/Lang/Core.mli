@@ -278,6 +278,10 @@ type expr =
     (** Print type (second parameter), evaluate and print the first expression,
       then continue to the second expression. *)
 
+  | EReplInstr of expr
+    (** Indicate handled REPL instruction. As an argument it holds expression
+        to evaluate next *)
+
 (** Values *)
 and value =
   | VNum of int

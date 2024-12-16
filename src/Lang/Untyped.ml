@@ -45,6 +45,9 @@ type expr =
     (** Print type (second parameter), evaluate and print the first expression,
       then continue to the second expression. *)
 
+  | EReplInstr of expr
+    (** Indicate handled repl instruction, now evaluate next expression *)
+
 (** Values *)
 and value =
   | VNum of int

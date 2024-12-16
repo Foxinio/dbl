@@ -446,6 +446,10 @@ and expr_data =
     (** Print the type of the first expression, evaluate and print the first
       expression, then continue to the second expression. *)
 
+  | EReplInstr  of repl_instr
+    (** Handle repl instruction, or pass it to the next IR *)
+
+
 (** Definition of recursive value *)
 and rec_def =
   { rd_pos      : Position.t;
@@ -473,6 +477,8 @@ and rec_def =
 
 (** Clause of a pattern matching *)
 and match_clause = pattern * expr
+
+and repl_instr = (expr, ReplInstr.empty, typ) ReplInstr.repl_instr
 
 (** Program *)
 type program = expr

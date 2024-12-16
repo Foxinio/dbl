@@ -136,6 +136,7 @@ and expr_data =
   | EAnnot      of expr * type_expr
   | ERepl       of (unit -> expr) * typ
   | EReplExpr   of expr * expr
+  | EReplInstr  of repl_instr
 
 and rec_def =
   { rd_pos      : Position.t;
@@ -147,5 +148,7 @@ and rec_def =
   }
 
 and match_clause = pattern * expr
+
+and repl_instr = (expr, ReplInstr.empty, Type.typ) ReplInstr.repl_instr
 
 type program = expr

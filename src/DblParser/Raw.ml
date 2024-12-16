@@ -298,6 +298,9 @@ and import_data =
 (** Program *)
 type program = def list node
 
+(** REPL instructions *)
+type repl_instr = (expr, def, type_expr) Lang.ReplInstr.repl_instr
+
 (** REPL command *)
 type repl_cmd =
   | REPL_Exit
@@ -305,9 +308,12 @@ type repl_cmd =
 
   | REPL_Expr of expr
     (** Evaluate given expression *)
-  
+
   | REPL_Defs of def list
     (** Provide a new group of definitions in a REPL session *)
 
   | REPL_Import of import
     (** Import a module *)
+
+  | REPL_Instr of repl_instr
+    (** Execute a REPL instruction *)

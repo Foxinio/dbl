@@ -67,6 +67,9 @@ let rec tr_expr env (e : S.expr) =
     let^ lbl_v = tr_expr_v env lbl_e in
     T.EReset(lbl_v, [], [], tr_expr env body, ret_var, tr_expr env ret_body)
 
+  | EReplInstr instr ->
+    tr_repl_instr env instr
+
 (** Translate expression and store result in variable [x] *)
 and tr_let_expr ~pure x env (e : S.expr) cont =
   match e with
@@ -160,6 +163,9 @@ and tr_rec_def env (rd : S.rec_def) =
   let tp   = T.Type.t_foralls tvs (TGuard(cs, sch)) in
   let body = tr_expr env rd.rd_body in
   (rd.rd_var, tp, body)
+
+and tr_repl_instr env instr =
+  failwith "unimplemented"
 
 (* ========================================================================= *)
 
