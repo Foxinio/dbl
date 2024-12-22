@@ -46,3 +46,7 @@ val abstr_data_in_pub_block : Position.t -> t
 
 val existential_type_arg_in_record : Position.t -> t
 val ignored_field_in_record : Position.t -> t
+
+val change_directory_failed : string -> t
+val unknown_show_command : string -> t
+val unknown_repl_instruction : string -> t

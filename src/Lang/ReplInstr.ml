@@ -15,29 +15,23 @@ type empty = |
 
 (** Set of instructions for manipulating REPL *)
 type ('expr, 'def, 'type_expr) repl_instr =
-  | REPLI_Exit
-  (** exit the REPL *)
-
-  | REPLI_Help
-  (** print all available commands *)
-
-  | REPLI_Type    of stage option * 'expr
-  (** print type of an expression, default stage is [EUnif] *)
+  | REPLI_Type    of 'expr
+  (** Print type of an expression, default stage is [EUnif] *)
 
   | REPLI_Kind    of 'type_expr
-  (** print kind of an expression *)
+  (** Print kind of an expression *)
+
+  | REPLI_Sig     of empty
+  (** Print signarure of a variable *)
 
   | REPLI_Methods of 'type_expr
-  (** print registered methods for given type *)
+  (** Print registered methods for given type *)
 
   | REPLI_Module  of string * 'def list
-  (** print interface of a module *)
-
-  | REPLI_Cd      of string
-  (** change current working directory *)
+  (** Print interface of a module *)
 
   | REPLI_Show    of string
-  (** show part of an environment
+  (** Show part of an environment
       Available options are:
       - [implicits] - show registered implicits and their types
       - [datas]     - show defined data types

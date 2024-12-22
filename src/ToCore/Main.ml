@@ -82,7 +82,7 @@ and tr_let_expr ~pure x env (e : S.expr) cont =
 
   | EApp _ | ETApp _ | ECApp _ | ELet _ | ELetPure _ | ELetRec _ | ERecCtx _
   | EData _ | ECtor _ | EMatch _ | EShift _ | EReset _
-  | ERepl _ | EReplExpr _ ->
+  | ERepl _ | EReplExpr _ | EReplInstr _ ->
     T.ELet(x, tr_expr env e, cont ())
 
 and tr_expr_as_var env e =
@@ -164,8 +164,7 @@ and tr_rec_def env (rd : S.rec_def) =
   let body = tr_expr env rd.rd_body in
   (rd.rd_var, tp, body)
 
-and tr_repl_instr env instr =
-  failwith "unimplemented"
+and tr_repl_instr env instr = failwith "unimplemented"
 
 (* ========================================================================= *)
 

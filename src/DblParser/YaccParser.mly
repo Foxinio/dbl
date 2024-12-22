@@ -27,6 +27,21 @@
 %type<Raw.repl_cmd> repl
 %start repl
 
+%type<Raw.expr> repl_expr
+%start repl_expr
+
+%type<Raw.type_expr> repl_ty_expr
+%start repl_ty_expr
+
+%type<Raw.import_path> repl_import_path
+%start repl_import_path
+
+%type<string> repl_string
+%start repl_string
+
+%type<string*string> repl_string2
+%start repl_string2
+
 %{
 
 open Raw
@@ -562,6 +577,29 @@ import_list
 
 /* ========================================================================= */
 
+repl_expr
+: expr SEMICOLON2 { $1 }
+;
+
+repl_ty_expr
+: ty_expr SEMICOLON2 { $1 }
+;
+
+repl_import_path
+: import_path SEMICOLON2 { $1 }
+;
+
+repl_string
+: STR SEMICOLON2 { $1 }
+;
+
+repl_string2
+: STR STR SEMICOLON2 { ($1, $2) }
+;
+
+
+/* ========================================================================= */
+
 program
 : def_list { make $1 }
 ;
@@ -571,8 +609,9 @@ file
 ;
 
 repl
-: EOF                  { REPL_Exit      }
-| expr SEMICOLON2      { REPL_Expr   $1 }
-| def_list1 SEMICOLON2 { REPL_Defs   $1 }
-| import SEMICOLON2    { REPL_Import $1 }
+: EOF                { REPL_Instr "exit" }
+| expr SEMICOLON2       { REPL_Expr   $1 }
+| def_list1 SEMICOLON2  { REPL_Defs   $1 }
+| import SEMICOLON2     { REPL_Import $1 }
+| COLON LID             { REPL_Instr  $2 }
 ;

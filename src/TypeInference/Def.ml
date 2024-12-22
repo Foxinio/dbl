@@ -243,12 +243,12 @@ let check_def : type st dir. tcfix:tcfix ->
       er_constr = expr.er_constr @ rest.er_constr
     }
 
-  | DReplInstr instr ->
-    let scope = Env.scope env in
-    let (e1, tp1, r_eff1) = check_repl_expr ~tcfix env ienv e1 eff in
-    let (e, resp, r_eff2) = cont.run env ienv req eff in
-    let resp = type_resp_in_scope ~env ~pos:def.pos ~scope resp in
-    (make e (T.EReplExpr(e1, tp1, e)), resp, ret_effect_join r_eff1 r_eff2)
+  (* | DReplInstr instr -> *)
+  (*   let scope = Env.scope env in *)
+  (*   let (e1, tp1, r_eff1) = check_repl_expr ~tcfix env ienv e1 eff in *)
+  (*   let (e, resp, r_eff2) = cont.run env ienv req eff in *)
+  (*   let resp = type_resp_in_scope ~env ~pos:def.pos ~scope resp in *)
+  (*   (make e (T.EReplExpr(e1, tp1, e)), resp, ret_effect_join r_eff1 r_eff2) *)
 
 (* ------------------------------------------------------------------------- *)
 let check_defs : type st dir. tcfix:tcfix ->

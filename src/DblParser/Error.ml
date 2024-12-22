@@ -95,3 +95,12 @@ let existential_type_arg_in_record pos =
 
 let ignored_field_in_record pos =
   (Some pos, "This construct is ignored in records")
+
+let change_directory_failed err =
+  (None, err)
+
+let unknown_show_command arg =
+  (None, Printf.sprintf "Unknown show command: %s" arg)
+
+let unknown_repl_instruction instr =
+  (None, Printf. sprintf "Unknown repl instruction: %s" instr)

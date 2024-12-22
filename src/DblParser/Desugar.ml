@@ -487,7 +487,7 @@ let rec tr_poly_expr (e : Raw.expr) =
     | EBOpID    x -> make (EVar      (prepend_path (tr_bop_id (make x))))
     | EUOpID    x -> make (EVar      (prepend_path (make_uop_id x)))
     | EList    [] -> make (EVar      (prepend_path (tr_ctor_name' CNNil)))
-    
+
     | EWildcard | ENum _ | ENum64 _ | EStr _ | EChr _ | EParen _ | EFn _
     | EApp _ | EEffect _ | EDefs _ | EMatch _ | ERecord _ | EHandler _
     | EExtern _ | EAnnot _ | EIf _ | EMethod _ | ESelect _ | EBOp _ | EUOp _

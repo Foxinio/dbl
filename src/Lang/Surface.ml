@@ -364,7 +364,40 @@ and match_clause = match_clause_data node
 and match_clause_data =
   | Clause of pattern * expr
 
-and repl_instr = (expr, def, type_expr) ReplInstr.repl_instr
+and repl_instr =
+  | REPLI_Type    of expr
+  (** Print type of an expression *)
+
+  | REPLI_Kind    of type_expr
+  (** Print kind of an expression *)
+
+  | REPLI_Sig     of poly_expr
+  (** Print signarure of a variable *)
+
+  | REPLI_Methods of type_expr
+  (** Print registered methods for given type *)
+
+  | REPLI_Module  of string * def list
+  (** Print interface of a module *)
+
+  | REPLI_Show    of string
+  (** Show part of an environment
+      Available options are:
+      - [implicits] - show registered implicits and their types
+      - [datas]     - show defined data types
+      - [ctors]     - show defined constructors and their types
+      - [vars]      - show defined variables and types of their values
+      - [var_vals]  - show defined variables and their values
+      - [modules]   - show imported modules
+      - [open_mods] - show opened modules *)
+
+  | REPLI_Dump    of expr
+  (** Dump intermediate representation in speciefied stage,
+      and stop evaluation after that *)
+
+  | REPLI_Handled
+  (** Internal representation saying that there was some REPL instruction,
+      but it's been handled at an earlier stage *)
 
 (** Program *)
 type program = expr
