@@ -101,6 +101,7 @@ let rec prepare_rec_data env (def : S.def) =
     let env = Env.open_module ~public env m in
     (env, make (D1_Blank))
 
+  | DReplInstr _
   | DReplExpr _ ->
     assert false
 

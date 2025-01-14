@@ -446,7 +446,7 @@ and expr_data =
     (** Print the type of the first expression, evaluate and print the first
       expression, then continue to the second expression. *)
 
-  | EReplInstr  of repl_instr
+  | EReplInstr  of repl_instr * expr
     (** Handle repl instruction, or pass it to the next IR *)
 
 
@@ -478,7 +478,11 @@ and rec_def =
 (** Clause of a pattern matching *)
 and match_clause = pattern * expr
 
-and repl_instr = (expr, ReplInstr.empty, typ) ReplInstr.repl_instr
+and repl_instr =
+  | REPLI_Handled
+  | REPLI_ToPrint of string
+  | REPLI_Show    of string
+  | REPLI_Dump    of expr
 
 (** Program *)
 type program = expr

@@ -149,6 +149,10 @@ and rec_def =
 
 and match_clause = pattern * expr
 
-and repl_instr = (expr, ReplInstr.empty, Type.typ) ReplInstr.repl_instr
+and repl_instr =
+  | REPLI_Handled
+  | REPLI_ToPrint of string
+  | REPLI_Show    of string
+  | REPLI_Dump    of expr
 
 type program = expr

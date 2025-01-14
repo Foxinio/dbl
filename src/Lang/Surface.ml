@@ -371,13 +371,13 @@ and repl_instr =
   | REPLI_Kind    of type_expr
   (** Print kind of an expression *)
 
-  | REPLI_Sig     of poly_expr
-  (** Print signarure of a variable *)
+  | REPLI_Scheme  of poly_expr
+  (** Print scheme of a variable *)
 
   | REPLI_Methods of type_expr
   (** Print registered methods for given type *)
 
-  | REPLI_Module  of string * def list
+  | REPLI_Module  of module_name * def list
   (** Print interface of a module *)
 
   | REPLI_Show    of string

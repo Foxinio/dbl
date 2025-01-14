@@ -67,8 +67,9 @@ let rec tr_expr env (e : S.expr) =
     let^ lbl_v = tr_expr_v env lbl_e in
     T.EReset(lbl_v, [], [], tr_expr env body, ret_var, tr_expr env ret_body)
 
-  | EReplInstr instr ->
-    tr_repl_instr env instr
+  | EReplInstr (instr, e) ->
+    tr_repl_instr env instr;
+    tr_expr env e
 
 (** Translate expression and store result in variable [x] *)
 and tr_let_expr ~pure x env (e : S.expr) cont =
@@ -134,6 +135,13 @@ and tr_expr_v env (e : S.expr) =
     let* x = tr_expr_as_var env e in
     return (T.VVar x)
 
+  | EReplExpr(e1, tp, e2) ->
+    EReplExpr(tr_expr env e1, tp, tr_expr_v env e2 cont)
+
+  | EReplInstr(instr, e) ->
+    tr_repl_instr env instr;
+    tr_expr_v env e
+
 (** Translate a list of expressions as list of values in expression building
   monad. *)
 and tr_expr_vs env es =
@@ -164,7 +172,14 @@ and tr_rec_def env (rd : S.rec_def) =
   let body = tr_expr env rd.rd_body in
   (rd.rd_var, tp, body)
 
-and tr_repl_instr env instr = failwith "unimplemented"
+and tr_repl_instr env (instr : S.repl_instr) : unit =
+  match instr with
+  | REPLI_Handled -> ()
+  | REPLI_ToPrint str -> Printf.printf "%s\n%!" str
+  | REPLI_Show _  -> failwith "unimplemented"
+  | REPLI_Dump e ->
+    let e = tr_expr env e in
+    SExpr.pretty_stdout (T.to_sexpr e)
 
 (* ========================================================================= *)
 

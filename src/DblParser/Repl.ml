@@ -4,7 +4,7 @@
 
 (** File with functionality of REPL Instrs *)
 
-module S = Lang.Surface
+module T = Lang.Surface
 
 (** Produce the string representation of a relative path. *)
 let string_of_rel_path (p, n) =
@@ -19,24 +19,29 @@ let make_nowhere data =
   ; Lang.Surface.data = data
   }
 
+(* ========================================================================= *)
+
 (** Contains help message, describing features of this functionality *)
 let help_message =
   {| help message here |}
 
 let show_functionality =
-  [ "implicits"; "datas"; "ctors"; "vars"; "var_vals"; "modules"; "open_mods" ]
+  [| "implicits"; "datas"; "ctors"; "vars";
+     "var_vals"; "modules"; "open_mods" |]
 
 let handle_show ~imported arg =
-  if not @@ List.mem arg show_functionality then
+  if not @@ Array.mem arg show_functionality then
     Error.fatal (Error.unknown_show_command arg);
   match arg with
   | _ ->
     (* TODO : Add this functionality *)
-    S.REPLI_Show arg
+    T.REPLI_Show arg
 
 let handle_set var value =
   (* TODO : Add this functionality *)
   failwith "unimplemented"
+
+(* ========================================================================= *)
 
 let parse_instr ~lexbuf ~imported instr =
   match instr with
@@ -45,23 +50,23 @@ let parse_instr ~lexbuf ~imported instr =
     exit 0
   | "help" | "h"  ->
     Printf.printf "%s\n%!" help_message;
-    S.REPLI_Handled
+    T.REPLI_Handled
   | "type" | "t" ->
     let e = YaccParser.repl_expr Lexer.token lexbuf in
     let e' = Desugar.tr_expr e in
-    S.REPLI_Type e'
+    T.REPLI_Type e'
   | "kind" | "k" ->
     let tp = YaccParser.repl_ty_expr Lexer.token lexbuf in
     let tp' = Desugar.tr_type_expr tp in
-    S.REPLI_Kind tp'
+    T.REPLI_Kind tp'
   | "methods" | "m" ->
     let tp = YaccParser.repl_ty_expr Lexer.token lexbuf in
     let tp' = Desugar.tr_type_expr tp in
-    S.REPLI_Methods tp'
-  | "signature" | "s" ->
+    T.REPLI_Methods tp'
+  | "scheme" | "s" ->
     let e = YaccParser.repl_expr Lexer.token lexbuf in
     let poly = Desugar.tr_poly_expr e in
-    S.REPLI_Sig poly
+    T.REPLI_Scheme poly
   | "module" ->
     let path = YaccParser.repl_import_path Lexer.token lexbuf in
     let path_name =
@@ -71,37 +76,40 @@ let parse_instr ~lexbuf ~imported instr =
     in
     let _, defs = Import.import_one
       Import.import_set_empty (make_nowhere (Raw.IImportOpen path))
-    in S.REPLI_Module (path_name, defs)
+    in
+    let defs = List.filter_map (fun (def : T.def) ->
+      match def.data with
+      | T.DModule _ -> Some def
+      | _ -> None) defs
+    in T.REPLI_Module (path_name, defs)
   | "cd" ->
     let path = YaccParser.repl_string Lexer.token lexbuf in  
     begin try Sys.chdir path with
     | Sys_error err -> Error.fatal (Error.change_directory_failed err)
     end;
-    S.REPLI_Handled
+    T.REPLI_Handled
   | "show" ->
     let arg = YaccParser.repl_string Lexer.token lexbuf in
-      handle_show ~imported arg
+    handle_show ~imported arg
   | "set" ->
     let (option, value) = YaccParser.repl_string2 Lexer.token lexbuf in
     handle_set option value;
-    S.REPLI_Handled
+    T.REPLI_Handled
   | "dump" ->
     let e = YaccParser.repl_expr Lexer.token lexbuf in
     let e' = Desugar.tr_expr e in
-    S.REPLI_Dump e'
+    T.REPLI_Dump e'
   | "sh" ->
     let str = YaccParser.repl_string Lexer.token lexbuf in
     begin match Unix.system str with
-    | Unix.WEXITED n -> S.REPLI_Handled
-    | Unix.WSIGNALED n -> S.REPLI_Handled
-    | Unix.WSTOPPED n -> S.REPLI_Handled
+    | Unix.WEXITED n -> T.REPLI_Handled
+    | Unix.WSIGNALED n -> T.REPLI_Handled
+    | Unix.WSTOPPED n -> T.REPLI_Handled
     end
   | _ -> Error.fatal (Error.unknown_repl_instruction instr)
 
-(* ========================================================================= *)
-
 let parse_instr_content ~(lexbuf : Lexing.lexbuf) ~imported (instr : string) =
-  make_nowhere (S.DReplInstr (parse_instr ~lexbuf ~imported instr))
+  make_nowhere (T.DReplInstr (parse_instr ~lexbuf ~imported instr))
 
 (* ========================================================================= *)
 

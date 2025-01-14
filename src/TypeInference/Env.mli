@@ -62,6 +62,9 @@ val add_adt : ?public:bool -> 'st t -> T.tvar -> Module.adt_info -> 'st t
 val add_ctor :
   ?public:bool -> 'st t -> string -> int -> Module.adt_info -> 'st t
 
+(** Get list of registered methods for given type variable. *)
+val get_methods : t -> T.tvar -> (T.var * T.scheme) list
+
 (* ========================================================================= *)
 
 (** Enter a new scope *)
