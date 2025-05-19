@@ -383,13 +383,13 @@ and repl_instr =
   | REPLI_Show    of string
   (** Show part of an environment
       Available options are:
-      - [implicits] - show registered implicits and their types
-      - [datas]     - show defined data types
-      - [ctors]     - show defined constructors and their types
-      - [vars]      - show defined variables and types of their values
-      - [var_vals]  - show defined variables and their values
-      - [modules]   - show imported modules
-      - [open_mods] - show opened modules *)
+      - [parameters] - show registered parameters and their types
+      - [datas]      - show defined data types
+      - [ctors]      - show defined constructors and their types
+      - [vars]       - show defined variables and types of their values
+      - [var_vals]   - show defined variables and their values
+      - [modules]    - show imported modules
+      - [open_mods]  - show opened modules *)
 
   | REPLI_Dump    of expr
   (** Dump intermediate representation in speciefied stage,

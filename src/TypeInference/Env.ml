@@ -295,6 +295,10 @@ let lookup_method env owner name =
 let lookup_ctor env name =
   lookup_stack env { lookup = fun m -> Module.lookup_ctor m name }
 
+let get_methods env owner = failwith "Unimplemented"
+  (* StrMap.to_list (lookup_method_map env owner) *)
+  (* |> List.map snd *)
+
 let lookup_adt env x =
   lookup_stack env { lookup = fun m -> Module.lookup_adt m x }
 
