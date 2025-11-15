@@ -17,6 +17,48 @@ let make_nowhere data =
   ; Lang.Surface.data = data
   }
 
+let rec repl_seq imported () =
+  InterpLib.Error.wrap_repl_cont (repl_seq_main imported) ()
+
+and repl_seq_main imported () =
+  flush stderr;
+  Buffer.clear InterpLib.Error.repl_input;
+  let fn buf n =
+    let res = input stdin buf 0 n in
+    Buffer.add_subbytes InterpLib.Error.repl_input buf 0 res;
+    res
+  in
+  Printf.printf "> %!";
+  Lexer.reset ();
+  let lexbuf = Lexing.from_function fn in
+  lexbuf.Lexing.lex_curr_p <-
+    { lexbuf.Lexing.lex_curr_p with
+      Lexing.pos_fname = "<stdin>"
+    };
+  match YaccParser.repl Lexer.token lexbuf with
+  | Raw.REPL_Exit ->
+    Printf.printf "\n%!";
+    exit 0
+
+  | Raw.REPL_Expr e ->
+    let def = make_nowhere (Lang.Surface.DReplExpr(Desugar.tr_expr e)) in
+    Seq.Cons([def], repl_seq imported)
+
+  | Raw.REPL_Defs defs ->
+    let defs = Desugar.tr_defs defs in
+    Seq.Cons(defs, repl_seq imported)
+
+  | Raw.REPL_Import import ->
+    let imported, defs = Import.import_one imported import in
+    Seq.Cons(defs, repl_seq imported)
+
+  | exception Parsing.Parse_error ->
+    Error.fatal (Error.unexpected_token
+      (Position.of_pp
+        lexbuf.Lexing.lex_start_p
+        lexbuf.Lexing.lex_curr_p)
+      (Lexing.lexeme lexbuf))
+
 let repl ~use_prelude =
   if use_prelude then
     let imported, prelude_defs = Import.import_prelude () in

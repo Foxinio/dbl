@@ -9,6 +9,9 @@ open TypeBase
 (** Unit type *)
 let t_unit = TVar BuiltinType.tv_unit
 
+(** Bool type *)
+let t_bool = TVar BuiltinType.tv_bool
+
 (** Option type *)
 let t_option arg =
   TApp(TVar BuiltinType.tv_option, arg)
@@ -32,6 +35,22 @@ let rec kind : type k. k typ -> k kind =
 (** Substitute one type in another *)
 let subst_type x stp tp =
   Subst.in_type (Subst.singleton x stp) tp
+
+(** Check equality of recursion flags *)
+let rflag_equal rflag1 rflag2 =
+  match rflag1, rflag2 with
+  | Positive, Positive -> true
+  | Positive, _        -> false
+
+  | General, General -> true
+  | General, _       -> false
+
+(** Check subsumption of recursion flags *)
+let rflag_sub rflag1 rflag2 =
+  match rflag1, rflag2 with
+  | Positive, _        -> true
+  | _,        General  -> true
+  | General,  Positive -> false
 
 (** Check if effect variable appears (syntactically) in an effect *)
 let rec effect_mem a (eff : effct) =
@@ -117,6 +136,7 @@ let rec equal : type k. ConstrSet.t -> k typ -> k typ -> bool =
 
   | TLabel lbl1, TLabel lbl2 ->
     effect_equal cset lbl1.effct lbl2.effct &&
+    rflag_equal lbl1.rflag lbl2.rflag &&
     begin match
       tvars_binder_equal ~sub1:Subst.empty ~sub2:Subst.empty
         lbl1.tvars lbl2.tvars
@@ -137,9 +157,9 @@ let rec equal : type k. ConstrSet.t -> k typ -> k typ -> bool =
     end
   | TLabel _, _ -> false
 
-  | TData(tp1, eff1, ctors1), TData(tp2, eff2, ctors2) ->
+  | TData(tp1, rflag1, ctors1), TData(tp2, rflag2, ctors2) ->
     equal cset tp1 tp2 &&
-    equal cset eff1 eff2 &&
+    rflag_equal rflag1 rflag2 &&
     List.length ctors1 = List.length ctors2 &&
     List.for_all2 (ctor_type_equal cset) ctors1 ctors2
   | TData _, _ -> false
@@ -206,12 +226,34 @@ let rec subtype cset tp1 tp2 =
     subtype (ConstrSet.add_list cset cs2) tp1 tp2
   | TGuard _, _ -> false
 
-  | TLabel _, TLabel _ -> equal cset tp1 tp2
+  | TLabel lbl1, TLabel lbl2 ->
+    effect_equal cset lbl1.effct lbl2.effct &&
+    rflag_sub lbl1.rflag lbl2.rflag &&
+    begin match
+      tvars_binder_equal ~sub1:Subst.empty ~sub2:Subst.empty
+        lbl1.tvars lbl2.tvars
+    with
+    | None -> false
+    | Some(sub1, sub2) ->
+      (* TODO: there is a lot of code duplication here. It might be improved.
+       *)
+      List.length lbl1.val_types = List.length lbl2.val_types &&
+      List.for_all2
+        (fun tp1 tp2 ->
+          equal cset (Subst.in_type sub1 tp1) (Subst.in_type sub2 tp2))
+        lbl1.val_types lbl2.val_types &&
+      equal cset
+        (Subst.in_type sub1 lbl1.delim_tp)
+        (Subst.in_type sub2 lbl2.delim_tp) &&
+      effect_equal cset
+        (Subst.in_type sub1 lbl1.delim_eff)
+        (Subst.in_type sub2 lbl2.delim_eff)
+    end
   | TLabel _, _ -> false
 
-  | TData(tp1, eff1, ctors1), TData(tp2, eff2, ctors2) ->
+  | TData(tp1, rflag1, ctors1), TData(tp2, rflag2, ctors2) ->
     equal cset tp1 tp2 &&
-    subeffect cset eff1 eff2 &&
+    rflag_sub rflag1 rflag2 &&
     List.length ctors1 = List.length ctors2 &&
     List.for_all2 (ctor_type_equal cset) ctors1 ctors2
   | TData _, _ -> false
@@ -281,16 +323,19 @@ let rec type_in_scope : type k. _ -> k typ -> k typ option =
     with
     | Some effct, Some val_types, Some delim_tp, Some delim_eff ->
       Some (TLabel
-        { effct; tvars = lbl.tvars; val_types; delim_tp; delim_eff })
+        { effct;
+          tvars = lbl.tvars;
+          val_types; delim_tp; delim_eff;
+          rflag = lbl.rflag
+        })
     | _ -> None
     end
-  | TData(tp, eff, ctors) ->
+  | TData(tp, rflag, ctors) ->
     begin match
       type_in_scope scope tp,
-      type_in_scope scope eff,
       forall_map (ctor_type_in_scope scope) ctors
     with
-    | Some tp, Some eff, Some ctors -> Some (TData(tp, eff, ctors))
+    | Some tp, Some ctors -> Some (TData(tp, rflag, ctors))
     | _ -> None
     end
   | TApp(tp1, tp2) ->
@@ -395,64 +440,94 @@ and subtype_in_scope scope (tp : ttype) =
     | Some cs, Some tp -> Some (TGuard(cs, tp))
     | _ -> None
     end
-  | TData(tp, eff, ctors) ->
+  | TData(tp, rflag, ctors) ->
     begin match
       type_in_scope scope tp,
-      subeffect_in_scope scope eff,
       forall_map (ctor_type_in_scope scope) ctors
     with
-    | Some tp, eff, Some ctors -> Some (TData(tp, eff, ctors))
+    | Some tp, Some ctors -> Some (TData(tp, rflag, ctors))
     | _ -> None
     end
 
-(** Check if all types on non-strictly positive positions fits in given
+(** Check if all types on non-positive positions fits in given
   scope. *)
-let rec strictly_positive : type k. nonrec_scope:_ -> k typ -> bool =
+let rec positive : type k. nonrec_scope:_ -> k typ -> bool =
   fun ~nonrec_scope tp ->
   match tp with
   | TVar _ | TEffPure -> true
-  | TGuard _ | TLabel _ | TData _ ->
+  | TLabel _ | TData _ ->
     begin match type_in_scope nonrec_scope tp with
     | Some _ -> true
     | None   -> false
     end
 
+  | TGuard (constraints, tp) ->
+    positive ~nonrec_scope tp &&
+    List.for_all
+      (fun (lhs, rhs) ->
+        positive ~nonrec_scope lhs &&
+        negative ~nonrec_scope rhs)
+      constraints
+
   | TEffJoin(eff1, eff2) ->
-    strictly_positive ~nonrec_scope eff1 &&
-    strictly_positive ~nonrec_scope eff2
+    positive ~nonrec_scope eff1 &&
+    positive ~nonrec_scope eff2
 
   | TArrow(tp1, tp2, eff) ->
-    begin match
-      type_in_scope nonrec_scope tp1,
-      strictly_positive ~nonrec_scope tp2,
-      strictly_positive ~nonrec_scope eff
-    with
-    | Some _, true, true -> true
-    | _ -> false
-    end
+    negative ~nonrec_scope tp1 &&
+    positive ~nonrec_scope tp2 &&
+    positive ~nonrec_scope eff
 
   | TForall(a, tp) ->
-    strictly_positive ~nonrec_scope:(TVar.Set.add a nonrec_scope) tp
+    positive ~nonrec_scope:(TVar.Set.add a nonrec_scope) tp
 
   | TApp(tp1, tp2) ->
     begin match
-      strictly_positive ~nonrec_scope tp1,
+      positive ~nonrec_scope tp1,
       type_in_scope nonrec_scope tp2
     with
     | true, Some _ -> true
     | _ -> false
     end
 
-(** Check if all types on non-strictly positive positions fits in given
-  scope (for ADT constructors) *)
-let strictly_positive_ctor ~nonrec_scope ctor =
-  let nonrec_scope = add_tvars_to_scope ctor.ctor_tvars nonrec_scope in
-  List.for_all (strictly_positive ~nonrec_scope) ctor.ctor_arg_types
+(** Check if all types on non-negative positions fits in given
+  scope. *)
+and negative : type k. nonrec_scope:_ -> k typ -> bool =
+  fun ~nonrec_scope tp ->
+  match tp with
+  | TEffPure -> true
+  | TVar _  | TLabel _ | TData _ | TApp _ | TEffJoin _ ->
+    begin match type_in_scope nonrec_scope tp with
+    | Some _ -> true
+    | None   -> false
+    end
 
-(** Check if all types on non-strictly positive positions fits in given
+  | TGuard (constraints, tp) ->
+    negative ~nonrec_scope tp &&
+    List.for_all
+      (fun (lhs, rhs) ->
+        negative ~nonrec_scope lhs &&
+        positive ~nonrec_scope rhs)
+      constraints
+
+  | TArrow(tp1, tp2, eff) ->
+    positive ~nonrec_scope tp1 &&
+    negative ~nonrec_scope tp2 &&
+    negative ~nonrec_scope eff
+
+  | TForall(a, tp) ->
+    negative ~nonrec_scope:(TVar.Set.add a nonrec_scope) tp
+
+(** Check if all types on non-positive positions fits in given
+  scope (for ADT constructors) *)
+let positive_ctor ~nonrec_scope ctor =
+  let nonrec_scope = add_tvars_to_scope ctor.ctor_tvars nonrec_scope in
+  List.for_all (positive ~nonrec_scope) ctor.ctor_arg_types
+
+(** Check if all types on non-positive positions fits in given
   scope (for list of ADT constructors) *)
-let strictly_positive_ctors ~nonrec_scope ctors =
-  List.for_all (strictly_positive_ctor ~nonrec_scope) ctors
+let positive_ctors ~nonrec_scope ctors =
+  List.for_all (positive_ctor ~nonrec_scope) ctors
 
 type ex = Ex : 'k typ -> ex
 
